@@ -155,7 +155,7 @@ def load_command_table(self, _):
             "get_upgrade_profile",
             table_transformer=aks_upgrades_table_format,
         )
-        g.custom_command("upgrade", "aks_upgrade", supports_no_wait=True)
+        g.custom_command("upgrade", "aks_update", supports_no_wait=True)
         g.custom_command("scale", "aks_scale", supports_no_wait=True)
         g.command("delete", "begin_delete", supports_no_wait=True, confirmation=True)
         g.custom_show_command(
@@ -504,4 +504,8 @@ def load_command_table(self, _):
             'list',
             'list_k8s_extension_type_versions',
             table_transformer=aks_extension_type_versions_list_table_format
-        )
+        )    # AKS debug commands (HolmesGPT integration)
+    # Note: Not using managed_clusters_sdk to avoid inheriting required resource_group/name params
+    with self.command_group("aks debug") as g:
+        g.custom_command('ask', 'aks_debug_ask')
+        g.custom_command('investigate', 'aks_debug_investigate')

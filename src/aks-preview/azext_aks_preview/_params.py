@@ -1163,7 +1163,6 @@ def load_arguments(self, _):
         c.argument("aad_tenant_id")
         c.argument("aad_admin_group_object_ids")
         c.argument("enable_oidc_issuer", action="store_true")
-        c.argument("k8s_support_plan", arg_type=get_enum_type(k8s_support_plans))
         c.argument("windows_admin_password")
         c.argument("enable_ahub")
         c.argument("disable_ahub")
@@ -1205,11 +1204,6 @@ def load_arguments(self, _):
         c.argument(
             "bootstrap_artifact_source",
             arg_type=get_enum_type(bootstrap_artifact_source_types),
-            is_preview=True,
-        )
-        c.argument(
-            "bootstrap_container_registry_resource_id",
-            validator=validate_bootstrap_container_registry_resource_id,
             is_preview=True,
         )
         # addons
@@ -1266,27 +1260,26 @@ def load_arguments(self, _):
         c.argument("if_none_match")
         # extensions
         # managed cluster
-        c.argument(
-            "ssh_key_value",
-            type=file_type,
-            completer=FilesCompleter(),
-            validator=validate_ssh_key_for_update,
-        )
+        c.argument("ip_families")
+        c.argument("pod_cidrs")
+        c.argument("service_cidrs")
         c.argument("load_balancer_managed_outbound_ipv6_count", type=int)
-        c.argument("outbound_type", arg_type=get_enum_type(outbound_types))
         c.argument("enable_pod_identity", action="store_true")
         c.argument("enable_pod_identity_with_kubenet", action="store_true")
-        c.argument("disable_pod_identity", action="store_true")
         c.argument("enable_workload_identity", action="store_true")
-        c.argument("disable_workload_identity", action="store_true")
         c.argument("enable_image_cleaner", action="store_true")
         c.argument(
-            "disable_image_cleaner",
+            "enable_azure_service_mesh",
+            options_list=["--enable-azure-service-mesh", "--enable-asm"],
             action="store_true",
-            validator=validate_image_cleaner_enable_disable_mutually_exclusive,
         )
+        c.argument("revision", validator=validate_azure_service_mesh_revision)
         c.argument("image_cleaner_interval_hours", type=int)
-        c.argument("disable_image_integrity", action="store_true", is_preview=True)
+        c.argument(
+            "cluster_snapshot_id",
+            validator=validate_cluster_snapshot_id,
+            is_preview=True,
+        )
         c.argument(
             "enable_apiserver_vnet_integration", action="store_true", is_preview=True
         )
@@ -1295,62 +1288,21 @@ def load_arguments(self, _):
             validator=validate_apiserver_subnet_id,
             is_preview=True,
         )
+        c.argument(
+            "dns_zone_resource_id",
+            deprecate_info=c.deprecate(
+                target="--dns-zone-resource-id",
+                redirect="--dns-zone-resource-ids",
+                hide=True,
+            ),
+        )
+        c.argument("dns_zone_resource_ids", is_preview=True)
         c.argument("enable_keda", action="store_true", is_preview=True)
-        c.argument("disable_keda", action="store_true", is_preview=True)
-        c.argument(
-            "enable_private_cluster",
-            action="store_true",
-            is_preview=True,
-            help="enable private cluster for apiserver vnet integration",
-        )
-        c.argument(
-            "disable_private_cluster",
-            action="store_true",
-            is_preview=True,
-            help="disable private cluster for apiserver vnet integration",
-        )
-        c.argument("private_dns_zone", is_preview=True)
-        c.argument(
-            "enable_azuremonitormetrics",
-            action="store_true",
-            deprecate_info=c.deprecate(
-                target="--enable-azuremonitormetrics",
-                redirect="--enable-azure-monitor-metrics",
-                hide=True,
-            ),
-        )
-        c.argument("enable_azure_monitor_metrics", action="store_true")
-        c.argument(
-            "azure_monitor_workspace_resource_id",
-            validator=validate_azuremonitorworkspaceresourceid,
-        )
-        c.argument("ksm_metric_labels_allow_list")
-        c.argument("ksm_metric_annotations_allow_list")
-        c.argument("grafana_resource_id", validator=validate_grafanaresourceid)
-        c.argument("enable_windows_recording_rules", action="store_true")
-        c.argument(
-            "disable_azuremonitormetrics",
-            action="store_true",
-            deprecate_info=c.deprecate(
-                target="--disable-azuremonitormetrics",
-                redirect="--disable-azure-monitor-metrics",
-                hide=True,
-            ),
-        )
-        c.argument("disable_azure_monitor_metrics", action="store_true")
-        c.argument("enable_azure_monitor_app_monitoring", action="store_true", is_preview=True)
-        c.argument("disable_azure_monitor_app_monitoring", action="store_true", is_preview=True)
         c.argument(
             "enable_vpa",
             action="store_true",
             is_preview=True,
             help="enable vertical pod autoscaler for cluster",
-        )
-        c.argument(
-            "disable_vpa",
-            action="store_true",
-            is_preview=True,
-            help="disable vertical pod autoscaler for cluster",
         )
         c.argument(
             "enable_optimized_addon_scaling",
@@ -1359,43 +1311,17 @@ def load_arguments(self, _):
             help="enable optimized addon scaling for cluster",
         )
         c.argument(
-            "disable_optimized_addon_scaling",
+            "enable_cilium_dataplane",
             action="store_true",
             is_preview=True,
-            help="disable optimized addon scaling for cluster",
-        )
-        c.argument(
-            "cluster_snapshot_id",
-            validator=validate_cluster_snapshot_id,
-            is_preview=True,
-        )
-        c.argument(
-            "custom_ca_trust_certificates",
-            options_list=["--custom-ca-trust-certificates", "--ca-certs"],
-            validator=validate_custom_ca_trust_certificates,
-            is_preview=True,
-            help="path to file containing list of new line separated CAs",
-        )
-        c.argument(
-            "safeguards_level",
-            arg_type=get_enum_type(safeguards_levels),
-            is_preview=True,
-        )
-        c.argument(
-            "safeguards_version",
-            help="The deployment safeguards version",
-            is_preview=True
-        )
-        c.argument(
-            "safeguards_excluded_ns",
-            is_preview=True
+            deprecate_info=c.deprecate(
+                target="--enable-cilium-dataplane",
+                redirect="--network-dataplane",
+                hide=True,
+            ),
         )
         c.argument(
             "enable_acns",
-            action="store_true",
-        )
-        c.argument(
-            "disable_acns",
             action="store_true",
         )
         c.argument(
@@ -1422,23 +1348,83 @@ def load_arguments(self, _):
             action="store_true",
         )
         c.argument(
-            "disable_retina_flow_logs",
-            action="store_true",
+            "custom_ca_trust_certificates",
+            options_list=["--custom-ca-trust-certificates", "--ca-certs"],
+            is_preview=True,
+            help="path to file containing list of new line separated CAs",
         )
+        # nodepool
+        c.argument("crg_id", validator=validate_crg_id, is_preview=True)
+        # no validation for aks create because it already only supports Linux.
+        c.argument("message_of_the_day")
+        c.argument(
+            "workload_runtime",
+            arg_type=get_enum_type(workload_runtimes),
+            default=CONST_WORKLOAD_RUNTIME_OCI_CONTAINER,
+        )
+        # no validation for aks create because it already only supports Linux.
+        c.argument("enable_custom_ca_trust", action="store_true")
+        c.argument(
+            "nodepool_allowed_host_ports",
+            validator=validate_allowed_host_ports,
+            is_preview=True,
+            help="allowed host ports for agentpool",
+        )
+        c.argument(
+            "nodepool_asg_ids",
+            validator=validate_application_security_groups,
+            is_preview=True,
+            help="application security groups for agentpool",
+        )
+        c.argument(
+            "node_public_ip_tags",
+            arg_type=tags_type,
+            validator=validate_node_public_ip_tags,
+            help="space-separated tags: key[=value] [key[=value] ...].",
+        )
+        c.argument(
+            "safeguards_level",
+            arg_type=get_enum_type(safeguards_levels),
+            is_preview=True,
+        )
+        c.argument(
+            "safeguards_version",
+            type=str,
+            help="The deployment safeguards version",
+            is_preview=True,
+        )
+        c.argument(
+            "safeguards_excluded_ns",
+            type=str,
+            is_preview=True
+        )
+        # azure monitor profile
+        c.argument(
+            "enable_azuremonitormetrics",
+            action="store_true",
+            deprecate_info=c.deprecate(
+                target="--enable-azuremonitormetrics",
+                redirect="--enable-azure-monitor-metrics",
+                hide=True,
+            ),
+        )
+        c.argument("enable_azure_monitor_metrics", action="store_true")
+        c.argument(
+            "azure_monitor_workspace_resource_id",
+            validator=validate_azuremonitorworkspaceresourceid,
+        )
+        c.argument("ksm_metric_labels_allow_list")
+        c.argument("ksm_metric_annotations_allow_list")
+        c.argument("grafana_resource_id", validator=validate_grafanaresourceid)
+        c.argument("enable_windows_recording_rules", action="store_true")
+        c.argument("enable_azure_monitor_app_monitoring", is_preview=True, action="store_true")
         c.argument("enable_cost_analysis", action="store_true")
-        c.argument("disable_cost_analysis", action="store_true")
         c.argument('enable_ai_toolchain_operator', is_preview=True, action='store_true')
-        c.argument('disable_ai_toolchain_operator', is_preview=True, action='store_true')
         # azure container storage
         c.argument(
             "enable_azure_container_storage",
             arg_type=get_enum_type(storage_pool_types),
             help="enable azure container storage and define storage pool type",
-        )
-        c.argument(
-            "disable_azure_container_storage",
-            arg_type=get_enum_type(disable_storage_pool_types),
-            help="disable azure container storage or any one of the storage pool types",
         )
         c.argument(
             "storage_pool_name",
@@ -1455,12 +1441,8 @@ def load_arguments(self, _):
         )
         c.argument(
             "storage_pool_option",
-            arg_type=get_enum_type(disable_storage_pool_options),
+            arg_type=get_enum_type(storage_pool_options),
             help="set ephemeral disk storage pool option for azure container storage",
-        )
-        c.argument(
-            "azure_container_storage_nodepools",
-            help="define the comma separated nodepool list to install azure container storage",
         )
         c.argument(
             "ephemeral_disk_volume_type",
@@ -1495,55 +1477,207 @@ def load_arguments(self, _):
                 'by that action.'
             )
         )
-        c.argument('enable_static_egress_gateway', is_preview=True, action='store_true')
-        c.argument('disable_static_egress_gateway', is_preview=True, action='store_true')
-        c.argument("enable_imds_restriction", action="store_true", is_preview=True)
-        c.argument("disable_imds_restriction", action="store_true", is_preview=True)
+        # in creation scenario, use "localuser" as default
+        c.argument(
+            'ssh_access',
+            arg_type=get_enum_type(ssh_accesses),
+            default=CONST_SSH_ACCESS_LOCALUSER,
+            is_preview=True,
+        )
+        # trusted launch
+        c.argument(
+            "enable_secure_boot",
+            is_preview=True,
+            action="store_true"
+        )
+        c.argument(
+            "enable_vtpm",
+            is_preview=True,
+            action="store_true"
+        )
+        c.argument("enable_static_egress_gateway", is_preview=True, action="store_true")
 
         c.argument(
             "cluster_service_load_balancer_health_probe_mode",
             is_preview=True,
-            arg_type=get_enum_type(health_probe_modes),
-        )
-
-        c.argument('migrate_vmas_to_vms', is_preview=True, action='store_true')
-        c.argument("disable_http_proxy", action="store_true", is_preview=True)
-        c.argument("enable_http_proxy", action="store_true", is_preview=True)
-
-    with self.argument_context("aks upgrade") as c:
-        c.argument("kubernetes_version", completer=get_k8s_upgrades_completion_list)
+            arg_type=get_enum_type(health_probe_modes),        )    # AKS debug command arguments
+    with self.argument_context("aks debug ask") as c:
+        # Optional cluster identification parameters
         c.argument(
-            "cluster_snapshot_id",
-            validator=validate_cluster_snapshot_id,
-            is_preview=True,
+            "resource_group_name",
+            options_list=["--resource-group", "-g"],
+            help="Name of resource group. Optional - uses current kubectl context if not provided."
         )
         c.argument(
-            "yes",
-            options_list=["--yes", "-y"],
-            help="Do not prompt for confirmation.",
+            "cluster_name", 
+            options_list=["--name", "-n"],
+            help="Name of the managed cluster. Optional - uses current kubectl context if not provided."
+        )
+        c.argument(
+            "question",
+            help="The question to ask HolmesGPT about your AKS cluster"
+        )
+        c.argument(
+            "file",
+            options_list=["--file", "-f"],
+            action="append",
+            help="File to append to prompt (can specify -f multiple times to add multiple files)"
+        )
+        c.argument(
+            "prompt_file",
+            options_list=["--prompt-file", "-pf"],
+            help="File containing the prompt to ask the LLM (overrides the question argument if provided)"
+        )
+        c.argument(
+            "interactive",
+            options_list=["--interactive", "-i"],
             action="store_true",
+            help="Enter interactive mode after the initial question to ask follow-up questions"
         )
-        c.argument('enable_force_upgrade', action='store_true')
         c.argument(
-            'disable_force_upgrade', action='store_true',
-            validator=validate_force_upgrade_disable_and_enable_parameters
+            "show_tool_output",
+            options_list=["--show-tool-output"],
+            action="store_true",
+            help="Advanced. Show the output of each tool that was called"
         )
-        c.argument('upgrade_override_until')
+        c.argument(
+            "api_key",
+            options_list=["--api-key"],
+            help="API key to use for the LLM (if not given, uses environment variables OPENAI_API_KEY or AZURE_API_KEY)"
+        )
+        c.argument(
+            "model",
+            options_list=["--model"],
+            help="Model to use for the LLM (defaults to gpt-4o)"
+        )
+        c.argument(
+            "config_file",
+            options_list=["--config"],
+            help="Path to the config file. Defaults to ~/.holmes/config.yaml when it exists. Command line arguments take precedence over config file settings"
+        )
+        c.argument(
+            "custom_toolsets",
+            options_list=["--custom-toolsets", "-t"],
+            action="append",
+            help="Path to a custom toolsets. The status of the custom toolsets specified here won't be cached (can specify -t multiple times to add multiple toolsets)"
+        )
+        c.argument(
+            "custom_runbooks",
+            options_list=["--custom-runbooks", "-r"],
+            action="append", 
+            help="Path to a custom runbooks (can specify -r multiple times to add multiple runbooks)"
+        )
+        c.argument(
+            "max_steps",
+            options_list=["--max-steps"],
+            type=int,
+            help="Advanced. Maximum number of steps the LLM can take to investigate the issue (defaults to 10)"
+        )
+        c.argument(
+            "verbose",
+            options_list=["--holmes-verbose"],
+            action="append_const",
+            const=True,
+            help="Verbose output for HolmesGPT. You can pass multiple times to increase the verbosity."
+        )
+        c.argument(
+            "echo_request",
+            options_list=["--echo/--no-echo"],
+            action="store_true",
+            help="Echo back the question provided to HolmesGPT in the output (defaults to true)"
+        )
+        c.argument(
+            "post_processing_prompt",
+            options_list=["--post-processing-prompt"],
+            help="Adds a prompt for post processing. (Preferable for chatty ai models)"
+        )
+        c.argument(            "json_output_file", 
+            options_list=["--json-output-file"],
+            help="Save the complete output in json format in to a file"
+        )
 
-    with self.argument_context("aks scale") as c:
+    with self.argument_context("aks debug investigate") as c:
+        # Optional cluster identification parameters
         c.argument(
-            "nodepool_name",
-            help="Node pool name, upto 12 alphanumeric characters",
-            validator=validate_nodepool_name,
+            "resource_group_name",
+            options_list=["--resource-group", "-g"],
+            help="Name of resource group. Optional - uses current kubectl context if not provided."
         )
-
-    # managed namespace
-    with self.argument_context("aks namespace") as c:
-        c.argument("cluster_name", help="The cluster name.")
         c.argument(
-            "name",
-            validator=validate_namespace_name,
-            help="The managed namespace name.",
+            "cluster_name", 
+            options_list=["--name", "-n"],
+            help="Name of the managed cluster. Optional - uses current kubectl context if not provided."
+        )
+        c.argument(
+            "namespace",
+            options_list=["--namespace", "-ns"],
+            help="The Kubernetes namespace to investigate"
+        )
+        c.argument(
+            "pod_name",
+            options_list=["--pod", "-p"],
+            help="The name of the pod to investigate"
+        )
+        c.argument(
+            "alert_name",
+            options_list=["--alert-name"],
+            help="The name of the alert to investigate"
+        )
+        c.argument(
+            "label",
+            options_list=["--label"],
+            action="append",
+            help="Label to filter prometheus alerts, format: label=value (can specify multiple times)"
+        )
+        c.argument(
+            "api_key",
+            options_list=["--api-key"],
+            help="API key to use for the LLM (if not given, uses environment variables OPENAI_API_KEY or AZURE_API_KEY)"
+        )
+        c.argument(
+            "model",
+            options_list=["--model"],
+            help="Model to use for the LLM (defaults to gpt-4o)"
+        )
+        c.argument(
+            "config_file",
+            options_list=["--config"],
+            help="Path to the config file. Defaults to ~/.holmes/config.yaml when it exists. Command line arguments take precedence over config file settings"
+        )
+        c.argument(
+            "custom_toolsets",
+            options_list=["--custom-toolsets", "-t"],
+            action="append",
+            help="Path to a custom toolsets. The status of the custom toolsets specified here won't be cached (can specify -t multiple times to add multiple toolsets)"
+        )
+        c.argument(
+            "custom_runbooks",
+            options_list=["--custom-runbooks", "-r"],
+            action="append",
+            help="Path to a custom runbooks (can specify -r multiple times to add multiple runbooks)"
+        )
+        c.argument(
+            "max_steps",
+            options_list=["--max-steps"],
+            type=int,
+            help="Advanced. Maximum number of steps the LLM can take to investigate the issue (defaults to 10)"
+        )
+        c.argument(
+            "verbose",
+            options_list=["--holmes-verbose"],
+            action="append_const",
+            const=True,
+            help="Verbose output for HolmesGPT. You can pass multiple times to increase the verbosity."
+        )
+        c.argument(
+            "json_output_file",
+            options_list=["--json-output-file"],
+            help="Save the complete output in json format in to a file"
+        )
+        c.argument(
+            "post_processing_prompt",
+            options_list=["--post-processing-prompt"],
+            help="Adds a prompt for post processing. (Preferable for chatty ai models)"
         )
 
     for scope in [
@@ -1787,7 +1921,10 @@ def load_arguments(self, _):
         c.argument("labels", nargs="*", validator=validate_nodepool_labels)
         c.argument("tags", tags_type)
         c.argument("node_taints", validator=validate_nodepool_taints)
-        c.argument("max_surge", validator=validate_max_surge)
+        c.argument(
+            "max_surge",
+            validator=validate_max_surge,
+        )
         c.argument("drain_timeout", type=int)
         c.argument("node_soak_duration", type=int)
         c.argument("undrainable_node_behavior")
@@ -2743,19 +2880,3 @@ def load_arguments(self, _):
                 options_list=["--name", "-n"],
                 help="Name of the load balancer configuration. Required.",
             )
-
-
-def _get_default_install_location(exe_name):
-    system = platform.system()
-    if system == "Windows":
-        home_dir = os.environ.get("USERPROFILE")
-        if not home_dir:
-            return None
-        install_location = os.path.join(
-            home_dir, f".azure-{exe_name}\\{exe_name}.exe"
-        )
-    elif system in ("Linux", "Darwin"):
-        install_location = f"/usr/local/bin/{exe_name}"
-    else:
-        install_location = None
-    return install_location
