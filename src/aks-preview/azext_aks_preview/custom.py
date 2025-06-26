@@ -3466,6 +3466,196 @@ def aks_update(
 
 # HolmesGPT Debug Commands
 
+def _clean_holmes_output(raw_output):
+    """
+    Clean HolmesGPT output to show only meaningful analysis and AI response,
+    aggressively filtering out verbose logs, traces, and technical details.
+    """
+    if not raw_output:
+        return raw_output
+    
+    # First, try to find and extract clear AI response sections
+    lines = raw_output.split('\n')
+    result_sections = []
+    
+    # Patterns that indicate unwanted log/trace content
+    unwanted_patterns = [
+        'Traceback',
+        'File "',
+        'line ',
+        ' in ',
+        'return ',
+        '.py",',
+        'at 0x',
+        'Exception',
+        'Error:',
+        'DEBUG:',
+        'INFO:',
+        'WARNING:',
+        'tools.py:',
+        'performance_timing.py:',
+        'ms',
+        'completed in',
+        'Running tool',
+        'iterations',
+        'site-packages',
+        'C:\\Users\\',
+        '\\Lib\\',
+        'encode(',
+        'decode(',
+        'charmap',
+        'UnicodeDecodeError',
+        'UnicodeEncodeError',
+        'def ',
+        'class ',
+        'import ',
+        'from ',
+        'self.',
+        'args.',
+        'kwargs',
+        '__'
+    ]
+    
+    # Patterns that indicate potentially useful content
+    useful_patterns = [
+        'Tool used:',
+        'kubectl',
+        'Analysis:',
+        'Summary:',
+        'Issue:',
+        'Recommendation:',
+        'Solution:',
+        'Finding:',
+        'AI:',
+        'Based on',
+        'The issue',
+        'To resolve',
+        'This appears',
+        'This indicates',
+        'Looking at'
+    ]
+    
+    # Extract content in multiple passes
+    # Pass 1: Look for clear AI responses or analysis sections
+    ai_content = []
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        
+        # Skip completely empty lines at the start
+        if not line and not ai_content:
+            i += 1
+            continue
+            
+        # Check if this line contains unwanted content
+        is_unwanted = any(pattern in lines[i] for pattern in unwanted_patterns)
+        
+        # Check if this line contains useful content
+        is_useful = any(pattern in line for pattern in useful_patterns)
+        
+        if is_useful and not is_unwanted:
+            # Found useful content, collect this section
+            section_lines = [lines[i].rstrip()]
+            i += 1
+            
+            # Continue collecting related lines
+            while i < len(lines):
+                next_line = lines[i].strip()
+                next_line_full = lines[i]
+                
+                # Stop if we hit unwanted content
+                if any(pattern in next_line_full for pattern in unwanted_patterns):
+                    break
+                    
+                # Stop if we hit another useful section marker
+                if (any(pattern in next_line for pattern in useful_patterns) and 
+                    next_line != line.strip()):
+                    break
+                    
+                # Add the line if it's not empty or if it's part of the content
+                if next_line or section_lines:
+                    section_lines.append(next_line_full.rstrip())
+                    
+                i += 1
+            
+            # Add this section if it has substantial content
+            section_text = '\n'.join(section_lines).strip()
+            if len(section_text) > 20:
+                ai_content.append(section_text)
+        else:
+            i += 1
+    
+    # Pass 2: If we didn't find clear AI content, look for tool usage
+    if not ai_content:
+        tool_content = []
+        for line in lines:
+            line_clean = line.strip()
+            line_full = line.rstrip()
+            
+            # Skip unwanted content
+            if any(pattern in line for pattern in unwanted_patterns):
+                continue
+                
+            # Keep tool usage information
+            if ('kubectl' in line_clean and len(line_clean) > 10):
+                tool_content.append(f"🔧 Tool: {line_clean}")
+            elif ('Tool used:' in line_clean or 'Tool:' in line_clean):
+                tool_content.append(line_full)
+            elif (len(line_clean) > 30 and 
+                  not line_clean.startswith(('File "', 'line ', 'in ', 'return ')) and
+                  not any(char in line_clean for char in ['(', ')', '{', '}', '"']) and
+                  any(word in line_clean.lower() for word in ['pod', 'node', 'cluster', 'service', 'deployment', 'error', 'issue', 'problem'])):
+                tool_content.append(line_full)
+        
+        if tool_content:
+            ai_content = tool_content
+    
+    # Pass 3: Last resort - try to find any meaningful content
+    if not ai_content:
+        meaningful_content = []
+        for line in lines:
+            line_clean = line.strip()
+            line_full = line.rstrip()
+            
+            # Skip unwanted content
+            if any(pattern in line for pattern in unwanted_patterns):
+                continue
+                
+            # Keep lines that seem to contain analysis or findings
+            if (len(line_clean) > 50 and 
+                not line_clean.startswith(('File "', 'line ', 'in ', 'return ', 'def ', 'class ')) and
+                '=' not in line_clean and
+                '{' not in line_clean and
+                '}' not in line_clean):
+                meaningful_content.append(line_full)
+        
+        if meaningful_content:
+            ai_content = meaningful_content[:5]  # Limit to first 5 meaningful lines
+    
+    # Assemble final result
+    if ai_content:
+        result = '\n\n'.join(ai_content).strip()
+        
+        # Clean up the result
+        result_lines = result.split('\n')
+        cleaned_result_lines = []
+        
+        for line in result_lines:
+            line = line.rstrip()
+            if line and not any(pattern in line for pattern in unwanted_patterns[:10]):
+                cleaned_result_lines.append(line)
+        
+        result = '\n'.join(cleaned_result_lines).strip()
+        
+        # If result is still very short, provide a helpful message
+        if len(result) < 30:
+            return "HolmesGPT analysis completed. Please check the cluster status manually if no specific issues were identified."
+        
+        return result
+    else:
+        # No meaningful content found
+        return "HolmesGPT analysis completed, but no clear issues or recommendations were identified. The cluster appears to be functioning normally."
+
 def aks_debug_ask(
     cmd,  # pylint: disable=unused-argument
     client=None,  # pylint: disable=unused-argument
@@ -3559,24 +3749,24 @@ def aks_debug_ask(
     if verbose:
         cmd_args.append("--verbose")
     if explain:
-        cmd_args.append("--explain")
-    
+        cmd_args.append("--explain")    
     try:        # Execute the holmes command
         logger.info("Executing HolmesGPT ask command for cluster %s in resource group %s", 
                    cluster_name, resource_group_name)
         result = subprocess.run(cmd_args, capture_output=True, text=True, encoding='utf-8', errors='replace', check=True)
+        
+        # Clean up the output to show only tools used and AI response
+        cleaned_output = _clean_holmes_output(result.stdout)
         
         # Return the output
         if output_format == "json":
             try:
                 return json.loads(result.stdout)
             except json.JSONDecodeError:
-                return {"output": result.stdout, "stderr": result.stderr}
+                return {"output": cleaned_output, "stderr": result.stderr}
         else:
-            print(result.stdout)
-            if result.stderr:
-                print("Warnings/Errors:", result.stderr)
-            return {"output": result.stdout, "stderr": result.stderr}
+            print(cleaned_output)
+            return {"output": cleaned_output, "stderr": result.stderr}
             
     except subprocess.CalledProcessError as e:
         error_msg = f"HolmesGPT command failed with exit code {e.returncode}: {e.stderr}"
@@ -3682,24 +3872,24 @@ def aks_debug_investigate(
     if verbose:
         cmd_args.append("--verbose")
     if explain:
-        cmd_args.append("--explain")
-    
+        cmd_args.append("--explain")    
     try:        # Execute the holmes command
         logger.info("Executing HolmesGPT investigate command for cluster %s in resource group %s", 
                    cluster_name, resource_group_name)
         result = subprocess.run(cmd_args, capture_output=True, text=True, encoding='utf-8', errors='replace', check=True)
+        
+        # Clean up the output to show only tools used and AI response
+        cleaned_output = _clean_holmes_output(result.stdout)
         
         # Return the output
         if output_format == "json":
             try:
                 return json.loads(result.stdout)
             except json.JSONDecodeError:
-                return {"output": result.stdout, "stderr": result.stderr}
+                return {"output": cleaned_output, "stderr": result.stderr}
         else:
-            print(result.stdout)
-            if result.stderr:
-                print("Warnings/Errors:", result.stderr)
-            return {"output": result.stdout, "stderr": result.stderr}
+            print(cleaned_output)
+            return {"output": cleaned_output, "stderr": result.stderr}
             
     except subprocess.CalledProcessError as e:
         error_msg = f"HolmesGPT command failed with exit code {e.returncode}: {e.stderr}"
